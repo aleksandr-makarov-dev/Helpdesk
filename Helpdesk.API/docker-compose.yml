@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+    postgres:
+        container_name: postgres
+        env_file:
+            - ".env"
+        image: postgres
+        restart: always
+        ports:
+            - "5432:5432"
+        volumes:
+            - ~/apps/postgres:/var/lib/postgres/data
+        environment:
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    minio:
+        container_name: minio
+        image: minio/minio
+        restart: always
+        env_file:
+            - ".env"
+        ports:
+            - "9000:9000"
+            - "9001:9001"
+        environment:
+            - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+            - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+        volumes:
+            - ~/apps/minio:/var/lib/minio/data
+        command: server /var/lib/minio/data --console-address ":9001"
