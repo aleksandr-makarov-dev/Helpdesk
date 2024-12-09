@@ -76,7 +76,7 @@ namespace Helpdesk.API.Modules.Tickets
                 }
             }
 
-            return Ok(new CreatedResponse(createdId.Value));
+            return Ok(new IdResponse(createdId.Value));
         }
 
         [HttpPut("{id:guid}")]

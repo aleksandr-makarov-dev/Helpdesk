@@ -1,35 +1,76 @@
+using System.Text;
+using Helpdesk.API.Configuration;
 using Helpdesk.API.Domain;
 using Helpdesk.API.Modules.Attachments;
 using Helpdesk.API.Modules.Tickets;
+using Helpdesk.API.Modules.Users;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using Minio;
 
 var builder = WebApplication.CreateBuilder(args);
 
 
 // Add services to the container.
+builder.Services.Configure<ApplicationOptions>(builder.Configuration.GetSection("ApplicationOptions"));
+
+
+var applicationOptions = builder.Services.BuildServiceProvider()
+    .GetRequiredService<IOptions<ApplicationOptions>>().Value;
+
+if (applicationOptions is null)
+{
+    throw new Exception("Application Options is null");
+}
+
 
 // Tickets
 builder.Services.AddScoped<TicketService>();
 
-// Attachments
-var minioAccessKey = "tz4azZwYuyQfxEUDwC01";
-var minioSecretKey = "tpjxZqWpvTiNRI3FOZYZDYs414sN4B16sMtwNkoY";
-
 builder.Services.AddMinio(configureClient=>configureClient
-    .WithEndpoint("localhost:9000")
-    .WithCredentials(minioAccessKey,minioSecretKey)
+    .WithEndpoint(applicationOptions.MinioEndpoint)
+    .WithCredentials(applicationOptions.MinioAccessKey,applicationOptions.MinioSecretKey)
     .WithSSL(false)
     .Build());
 
 builder.Services.AddScoped<IStorageService, MinioStorageService>();
 builder.Services.AddScoped<AttachmentService>();
 
+// Users
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<JsonWebTokenService>();
+
 builder.Services.AddDbContext<ApplicationDbContext>((options) =>
 {
-    options.UseNpgsql("Host=localhost; Port=5432; Database=helpdesk_db; Username=postgres; Password=root123");
+    // TODO: move to secret store
+    options.UseNpgsql(applicationOptions.ConnectionString);
 });
 
+builder.Services.AddIdentity<User, IdentityRole<Guid>>((options) =>
+    {
+        options.Password.RequiredLength = 6;
+        options.Password.RequireDigit = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.SignIn.RequireConfirmedAccount = true;
+    })
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddAuthentication()
+    .AddJwtBearer((options) =>
+    {
+        options.TokenValidationParameters.ValidateAudience = false;
+        options.TokenValidationParameters.ValidateIssuer = false;
+        options.TokenValidationParameters.IssuerSigningKey =
+            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(applicationOptions.JwtSecretKey));
+        options.TokenValidationParameters.ClockSkew = TimeSpan.Zero;
+    });
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
@@ -52,6 +93,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

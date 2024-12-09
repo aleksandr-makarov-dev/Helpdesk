@@ -1,4 +1,6 @@
 ﻿using FluentResults;
+using Helpdesk.API.Configuration;
+using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
 
@@ -7,11 +9,12 @@ namespace Helpdesk.API.Modules.Attachments
     public class MinioStorageService:IStorageService
     {
         private readonly IMinioClient _minioClient;
-        private const string BucketName = "mybucket";
+        private readonly ApplicationOptions _applicationOptions;
 
-        public MinioStorageService(IMinioClient minioClient)
+        public MinioStorageService(IMinioClient minioClient, IOptions<ApplicationOptions> applicationOptions)
         {
             _minioClient = minioClient;
+            _applicationOptions = applicationOptions.Value;
         }
 
         public async Task<Result<string>> StoreAsync(IFormFile file)
@@ -21,16 +24,16 @@ namespace Helpdesk.API.Modules.Attachments
             try
             {
                 var bucketExistsResult =
-                    await _minioClient.BucketExistsAsync(new BucketExistsArgs().WithBucket(BucketName));
+                    await _minioClient.BucketExistsAsync(new BucketExistsArgs().WithBucket(_applicationOptions.MinioBucketName));
 
                 if (!bucketExistsResult)
                 {
-                    return Result.Fail(new Error($"Bucked {BucketName} does not exist"));
+                    return Result.Fail(new Error($"Bucked {_applicationOptions.MinioBucketName} does not exist"));
                 }
 
                 var pubObjectResult = await _minioClient.PutObjectAsync(
                     new PutObjectArgs()
-                        .WithBucket(BucketName)
+                        .WithBucket(_applicationOptions.MinioBucketName)
                         .WithObject(file.FileName)
                         .WithStreamData(file.OpenReadStream())
                         .WithObjectSize(file.Length)
@@ -55,7 +58,7 @@ namespace Helpdesk.API.Modules.Attachments
             {
                 return await _minioClient.PresignedGetObjectAsync(
                     new PresignedGetObjectArgs()
-                        .WithBucket(BucketName)
+                        .WithBucket(_applicationOptions.MinioBucketName)
                         .WithObject(fileName)
                         .WithExpiry(86400)
                 );
