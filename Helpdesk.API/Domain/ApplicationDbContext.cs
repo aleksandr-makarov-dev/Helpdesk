@@ -8,6 +8,7 @@ namespace Helpdesk.API.Domain
     {
         public DbSet<Ticket> Tickets { get; set; }
         public DbSet<Attachment> Attachments { get; set; }
+        public DbSet<TicketAttachment> TicketAttachments { get; set; }
 
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options):base(options)
         {

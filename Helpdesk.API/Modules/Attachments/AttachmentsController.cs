@@ -44,5 +44,12 @@ namespace Helpdesk.API.Modules.Attachments
 
             return Ok(attachmentResult.Value);
         }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAllAttachments()
+        {
+            var foundAttachments = await _attachmentService.GetAllAttachmentsAsync();
+            return Ok(foundAttachments);
+        }
     }
 }

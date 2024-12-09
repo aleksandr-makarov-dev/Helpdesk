@@ -1,6 +1,8 @@
 ﻿using FluentResults;
 using Helpdesk.API.Domain;
+using Helpdesk.API.Errors;
 using Helpdesk.API.Models;
+using Helpdesk.API.Modules.Attachments;
 using Helpdesk.API.Modules.Tickets.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,10 +11,12 @@ namespace Helpdesk.API.Modules.Tickets
     public class TicketService
     {
         private readonly ApplicationDbContext _context;
+        private readonly AttachmentService _attachmentService;
 
-        public TicketService(ApplicationDbContext context)
+        public TicketService(ApplicationDbContext context, AttachmentService attachmentService)
         {
             _context = context;
+            _attachmentService = attachmentService;
         }
 
         public async Task<Page<TicketResponse>> GetTicketsPageAsync(int page = 1, int limit = 10)
@@ -35,7 +39,19 @@ namespace Helpdesk.API.Modules.Tickets
                 .Tickets
                 .FirstOrDefaultAsync(t => t.Id == id);
 
-            return foundTicket is null ? Result.Fail(new Error($"Ticket {id} does not exist")) : Result.Ok(foundTicket.ToTicketDetailsResponse());
+            if (foundTicket is null)
+            {
+                return Result.Fail(new Error($"Ticket {id} does not exist"));
+            }
+
+            var foundAttachments = await _attachmentService.GetAttachmentsByTicketIdAsync(foundTicket.Id);
+
+            if (foundAttachments.IsFailed)
+            {
+                return Result.Fail(new Error("Failed to retrieve attachments"));
+            }
+
+            return Result.Ok(foundTicket.ToTicketDetailsResponse(foundAttachments.Value));
         }
 
         public async Task<Result<Guid>> CreateTicketAsync(TicketRequest request)
@@ -47,6 +63,58 @@ namespace Helpdesk.API.Modules.Tickets
             var changes = await _context.SaveChangesAsync();
 
             return changes > 0 ? Result.Ok(ticketToCreate.Id) : Result.Fail(new Error("Failed to create ticket"));
+        }
+
+        public async Task<Result> UpdateTicketAsync(Guid ticketId,TicketUpdateRequest request)
+        {
+            var foundTicket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == ticketId);
+
+            if (foundTicket is null)
+            {
+                return Result.Fail(new NotFoundError($"Ticket {ticketId} does not exist"));
+            }
+
+            if (foundTicket.Status == TicketStatus.Closed)
+            {
+                return Result.Fail(new Error("Closed ticket cannot be updated"));
+            }
+
+            if (request.TicketPriority.HasValue)
+            {
+                foundTicket.Priority = request.TicketPriority.Value;
+            }
+
+            if (request.TicketStatus.HasValue)
+            {
+                foundTicket.Status = request.TicketStatus.Value;
+            }
+
+            var changes = await _context.SaveChangesAsync();
+
+            return changes > 0 ? Result.Ok() : Result.Fail(new Error("Failed to update ticket"));
+        }
+
+        public async Task<Result> DeleteTicketAsync(Guid id)
+        {
+            var foundTicket = await _context.Tickets.Include(t=>t.TicketAttachments).FirstOrDefaultAsync(t => t.Id == id);
+
+            if (foundTicket is null)
+            {
+                return Result.Fail(new NotFoundError($"Ticket {id} does not exist"));
+            }
+
+            foreach (var attachment in foundTicket.TicketAttachments.ToList())
+            {
+                
+                // TODO: can optimize and don't fetch ticket attachment twice
+                await _attachmentService.DeleteAttachmentById(attachment.AttachmentId);
+            }
+
+            // TODO: clear files in minio (LATER)
+            _context.Tickets.Remove(foundTicket);
+            int changes = await _context.SaveChangesAsync();
+
+            return changes > 0 ? Result.Ok() : Result.Fail(new Error("Failed to delete ticket"));
         }
     }
 }

@@ -10,5 +10,6 @@ namespace Helpdesk.API.Modules.Tickets.Models
         [MinLength(5)]
         [MaxLength(1000)]
         public string Description { get; set; } = string.Empty;
+        public List<Guid> Attachments { get; set; } = [];
     }
 }

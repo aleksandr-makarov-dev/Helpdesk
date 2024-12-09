@@ -14,7 +14,7 @@ namespace Helpdesk.API.Modules.Tickets
         public TicketStatus Status { get; set; } = TicketStatus.Pending;
         public TicketPriority Priority { get; set; } = TicketPriority.Low;
         public DateTime CreatedAt { get; set; }
-        public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+        public ICollection<TicketAttachment> TicketAttachments { get; set; } = new List<TicketAttachment>();
     }
 
     public enum TicketStatus

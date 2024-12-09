@@ -40,6 +40,75 @@ namespace Helpdesk.API.Modules.Attachments
                 : Result.Fail(new Error("Failed to upload file"));
         }
 
+        public async Task<bool> AttachToTicketAsync(TicketAttachmentRequest request)
+        {
+            var attachmentToCreate = request.ToTicketAttachment();
+            await _context.TicketAttachments.AddAsync(attachmentToCreate);
+            int changes = await _context.SaveChangesAsync();
+
+            return changes > 0;
+        }
+
+        public async Task<bool> IsAttachedAsync(TicketAttachmentRequest request)
+        {
+            return await _context.TicketAttachments.AnyAsync(ta =>
+                ta.AttachmentId == request.AttachmentId && ta.TicketId == request.TicketId);
+        }
+
+        public async Task<Result<List<AttachmentResponse>>> GetAttachmentsByTicketIdAsync(Guid ticketId)
+        {
+            try
+            {
+                var foundAttachments = await _context
+                    .TicketAttachments
+                    .Where(ta => ta.TicketId == ticketId)
+                    .Include(ta => ta.Attachment)
+                    .Select(ta=>ta.Attachment)
+                    .ToListAsync();
+
+                var attachmentResponses = new List<AttachmentResponse>();
+
+                foreach (var foundAttachment in foundAttachments)
+                {
+                    // TODO: check that pre signed url was created
+                    var preSignedUrl = await _storageService.RetrieveAsync(foundAttachment.FileName);
+
+                    attachmentResponses.Add(foundAttachment.ToAttachmentResponse(preSignedUrl));
+                }
+
+                return Result.Ok(attachmentResponses);
+            }
+            catch (Exception e)
+            {
+                return Result.Fail(new Error(e.Message));
+            }
+        }
+
+        public async Task<IEnumerable<Attachment>> GetAllAttachmentsAsync()
+        {
+            return await _context.Attachments.ToListAsync();
+        }
+
+        public async Task<bool> DeleteAttachmentById(Guid attachmentId)
+        {
+            var ticketAttachment = await _context.TicketAttachments.FirstOrDefaultAsync(ta=>ta.AttachmentId == attachmentId);
+            if (ticketAttachment is not null)
+            {
+                _context.TicketAttachments.Remove(ticketAttachment);
+            }
+
+            var attachment = await _context.Attachments.FirstOrDefaultAsync(a=>a.Id == attachmentId);
+
+            if (attachment is not null)
+            {
+                _context.Attachments.Remove(attachment);
+            }
+
+            int changes = await _context.SaveChangesAsync();
+
+            return changes > 0;
+        }
+
         public Result ValidateAttachment(IFormFile file)
         {
             if (file is null || file.Length == 0)

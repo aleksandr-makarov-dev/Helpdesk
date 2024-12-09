@@ -14,5 +14,7 @@ namespace Helpdesk.API.Modules.Attachments
 
         [MaxLength(200)]
         public string? Description { get; set; }
+
+        public ICollection<TicketAttachment> TicketAttachments = new List<TicketAttachment>();
     }
 }

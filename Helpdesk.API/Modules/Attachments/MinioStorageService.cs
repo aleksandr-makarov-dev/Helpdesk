@@ -31,18 +31,13 @@ namespace Helpdesk.API.Modules.Attachments
                 var pubObjectResult = await _minioClient.PutObjectAsync(
                     new PutObjectArgs()
                         .WithBucket(BucketName)
-                        .WithObject(Guid.NewGuid() + Path.GetExtension(file.FileName))
+                        .WithObject(file.FileName)
                         .WithStreamData(file.OpenReadStream())
                         .WithObjectSize(file.Length)
                         .WithContentType(file.ContentType)
                 );
 
-                var preSignedUrl = await _minioClient.PresignedGetObjectAsync(
-                    new PresignedGetObjectArgs()
-                        .WithBucket(BucketName)
-                        .WithObject(pubObjectResult.ObjectName)
-                        .WithExpiry(86400)
-                );
+                var preSignedUrl = await RetrieveAsync(pubObjectResult.ObjectName);
 
                 return preSignedUrl is null
                     ? Result.Fail(new Error("Failed to generate url"))
@@ -51,6 +46,24 @@ namespace Helpdesk.API.Modules.Attachments
             catch (Exception e)
             {
                 return Result.Fail(new Error(e.Message));
+            }
+        }
+
+        public async Task<string?> RetrieveAsync(string fileName)
+        {
+            try
+            {
+                return await _minioClient.PresignedGetObjectAsync(
+                    new PresignedGetObjectArgs()
+                        .WithBucket(BucketName)
+                        .WithObject(fileName)
+                        .WithExpiry(86400)
+                );
+
+            }
+            catch (Exception e)
+            {
+                return null;
             }
         }
     }

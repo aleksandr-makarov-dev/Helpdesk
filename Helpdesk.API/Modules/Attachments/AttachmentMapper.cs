@@ -16,5 +16,14 @@ namespace Helpdesk.API.Modules.Attachments
         {
             return new AttachmentResponse(a.Id, a.FileName, preSignedUrl);
         }
+
+        public static TicketAttachment ToTicketAttachment(this TicketAttachmentRequest a)
+        {
+            return new TicketAttachment
+            {
+                AttachmentId = a.AttachmentId,
+                TicketId = a.TicketId
+            };
+        }
     }
 }
