@@ -2,6 +2,9 @@
 using Helpdesk.API.Modules.Users.Models;
 using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
+using Helpdesk.API.Errors;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Builder.Extensions;
 
 namespace Helpdesk.API.Modules.Users
 {
@@ -42,7 +45,7 @@ namespace Helpdesk.API.Modules.Users
             return Result.Ok();
         }
 
-        public async Task<Result<SessionResponse>> LoginUserAsync(LoginRequest request)
+        public async Task<Result<SessionResponse>> LoginUserAsync(LoginRequest request, HttpContext httpContext)
         {
             var foundUser = await _userManager.FindByEmailAsync(request.Email);
 
@@ -70,10 +73,32 @@ namespace Helpdesk.API.Modules.Users
 
             await _userManager.SetAuthenticationTokenAsync(foundUser, "local", "refresh_token", refreshToken);
 
-            // somehow set cookie...
+            // somehow set cookie... (fix later)
+            await httpContext.SignInAsync(IdentityConstants.ApplicationScheme, new ClaimsPrincipal(identity));
             var accessToken = _jsonWebTokenService.GenerateTokenAsync(identity);
 
             return Result.Ok(new SessionResponse(accessToken));
+        }
+
+        public async Task<Result<SessionResponse>> RefreshSessionAsync(ClaimsPrincipal user, HttpContext httpContext)
+        {
+            var foundUser = await _userManager.FindByIdAsync(user.FindFirstValue(ClaimTypes.NameIdentifier));
+
+            if (foundUser is null)
+            {
+                return Result.Fail(new NotFoundError("Session expired"));
+            }
+
+            ClaimsIdentity? identity = (await _signInManager.CreateUserPrincipalAsync(foundUser)).Identities.FirstOrDefault();
+
+            var accessToken = _jsonWebTokenService.GenerateTokenAsync(identity);
+
+            return Result.Ok(new SessionResponse(accessToken));
+        }
+
+        public async Task LogoutUserAsync()
+        { 
+            await _signInManager.SignOutAsync();
         }
     }
 }

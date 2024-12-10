@@ -1,7 +1,11 @@
 ﻿
 using System.Net;
+using System.Security.Claims;
 using Helpdesk.API.Models;
 using Helpdesk.API.Modules.Users.Models;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Builder.Extensions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Helpdesk.API.Modules.Users
@@ -36,9 +40,9 @@ namespace Helpdesk.API.Modules.Users
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> LoginAsync([FromBody] LoginRequest request)
+        public async Task<IActionResult> LoginUser([FromBody] LoginRequest request)
         {
-            var loginResult = await _userService.LoginUserAsync(request);
+            var loginResult = await _userService.LoginUserAsync(request,HttpContext);
 
             if (loginResult.IsFailed)
             {
@@ -49,8 +53,33 @@ namespace Helpdesk.API.Modules.Users
                     Detail = loginResult.Errors.First().Message
                 });
             }
-
             return Ok(loginResult.Value);
+        }
+
+        [HttpPost("refresh")]
+        public async Task<IActionResult> RefreshSession()
+        {
+            var refreshSessionResult = await _userService.RefreshSessionAsync(User, HttpContext);
+
+            if (refreshSessionResult.IsFailed)
+            {
+                return Unauthorized(new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.Unauthorized,
+                    Title = "401 Unauthorized",
+                    Detail = refreshSessionResult.Errors.First().Message
+                });
+            }
+
+            return Ok(refreshSessionResult.Value);
+        }
+
+        [HttpDelete("logout")]
+        public async Task<IActionResult> LogoutUser()
+        {
+            await _userService.LogoutUserAsync();
+
+            return NoContent();
         }
     }
 }
