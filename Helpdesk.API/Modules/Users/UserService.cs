@@ -12,13 +12,15 @@ namespace Helpdesk.API.Modules.Users
     {
         private readonly SignInManager<User> _signInManager;
         private readonly UserManager<User> _userManager;
+        private readonly RoleManager<IdentityRole<Guid>> _roleManager;
         private readonly JsonWebTokenService _jsonWebTokenService;
 
-        public UserService(SignInManager<User> signInManager, UserManager<User> userManager, JsonWebTokenService jsonWebTokenService)
+        public UserService(SignInManager<User> signInManager, UserManager<User> userManager, JsonWebTokenService jsonWebTokenService, RoleManager<IdentityRole<Guid>> roleManager)
         {
             _signInManager = signInManager;
             _userManager = userManager;
             _jsonWebTokenService = jsonWebTokenService;
+            _roleManager = roleManager;
         }
 
         public async Task<Result> RegisterUserAsync(RegisterRequest request)
@@ -41,6 +43,8 @@ namespace Helpdesk.API.Modules.Users
             {
                 return Result.Fail(new Error(createUserResult.Errors.First().Description));
             }
+
+            await _userManager.AddToRoleAsync(userToCreate, Role.User);
 
             return Result.Ok();
         }
@@ -82,14 +86,14 @@ namespace Helpdesk.API.Modules.Users
 
         public async Task<Result<SessionResponse>> RefreshSessionAsync(ClaimsPrincipal user, HttpContext httpContext)
         {
-            var foundUser = await _userManager.FindByIdAsync(user.FindFirstValue(ClaimTypes.NameIdentifier));
+            var foundUser = await _userManager.FindByIdAsync(user.GetUserId().ToString());
 
             if (foundUser is null)
             {
                 return Result.Fail(new NotFoundError("Session expired"));
             }
 
-            ClaimsIdentity? identity = (await _signInManager.CreateUserPrincipalAsync(foundUser)).Identities.FirstOrDefault();
+            var identity = (await _signInManager.CreateUserPrincipalAsync(foundUser)).Identities.FirstOrDefault();
 
             var accessToken = _jsonWebTokenService.GenerateTokenAsync(identity);
 

@@ -1,4 +1,9 @@
-﻿using Helpdesk.API.Modules.Tickets;
+﻿using Helpdesk.API.Configuration;
+using Helpdesk.API.Modules.Tickets;
+using Helpdesk.API.Modules.Users;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Helpdesk.API.Domain
 {
@@ -9,105 +14,33 @@ namespace Helpdesk.API.Domain
             using (var scope = app.Services.CreateScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+                var applicationOptions = scope.ServiceProvider.GetRequiredService<IOptions<ApplicationOptions>>().Value;
 
-                if (!context.Tickets.Any())
+                if (! await roleManager.Roles.AnyAsync())
                 {
-                    var tickets = new List<Ticket>
-            {
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Server Down",
-                    Description = "The production server is down.",
-                    Status = TicketStatus.Pending,
-                    Priority = TicketPriority.High,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Bug in Login Page",
-                    Description = "Users cannot log in due to a JavaScript error.",
-                    Status = TicketStatus.Working,
-                    Priority = TicketPriority.High,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Feature Request: Dark Mode",
-                    Description = "Add support for dark mode in the web app.",
-                    Status = TicketStatus.Pending,
-                    Priority = TicketPriority.Medium,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Database Optimization",
-                    Description = "Optimize the database for faster queries.",
-                    Status = TicketStatus.Pending,
-                    Priority = TicketPriority.Medium,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Update Privacy Policy",
-                    Description = "Revise and publish the new privacy policy.",
-                    Status = TicketStatus.Working,
-                    Priority = TicketPriority.Low,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Mobile App Crash",
-                    Description = "The mobile app crashes when opening the settings page.",
-                    Status = TicketStatus.Working,
-                    Priority = TicketPriority.High,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Performance Issue",
-                    Description = "The web app takes too long to load on certain pages.",
-                    Status = TicketStatus.Pending,
-                    Priority = TicketPriority.High,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Add New Analytics Dashboard",
-                    Description = "Create a new analytics dashboard for marketing insights.",
-                    Status = TicketStatus.Pending,
-                    Priority = TicketPriority.Medium,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Email Notifications",
-                    Description = "Email notifications are not being sent to users.",
-                    Status = TicketStatus.Closed,
-                    Priority = TicketPriority.High,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Ticket
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Update API Documentation",
-                    Description = "The API documentation needs to be updated with the latest changes.",
-                    Status = TicketStatus.Pending,
-                    Priority = TicketPriority.Low,
-                    CreatedAt = DateTime.UtcNow
+                    await roleManager.CreateAsync(new IdentityRole<Guid>(Role.Admin));
+                    await roleManager.CreateAsync(new IdentityRole<Guid>(Role.User));
                 }
-            };
 
-                    await context.Tickets.AddRangeAsync(tickets);
-                    await context.SaveChangesAsync();
+                if (!await userManager.Users.AnyAsync())
+                {
+                    var admin = new User
+                    {
+                        Email = applicationOptions.DefaultAdminEmail,
+                        UserName = applicationOptions.DefaultAdminEmail,
+                        EmailConfirmed = true
+                    };
+
+                    var result = await userManager.CreateAsync(admin,applicationOptions.DefaultAdminPassword);
+
+                    if (!result.Succeeded)
+                    {
+                        throw new Exception("Failed to create default admin user");
+                    }
+
+                    await userManager.AddToRoleAsync(admin, Role.Admin);
                 }
             }
         }

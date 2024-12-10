@@ -19,9 +19,16 @@ namespace Helpdesk.API.Modules.Tickets
             _attachmentService = attachmentService;
         }
 
-        public async Task<Page<TicketResponse>> GetTicketsPageAsync(int page = 1, int limit = 10)
+        public async Task<Page<TicketResponse>> GetTicketsPageAsync(int page = 1, int limit = 10, Guid? userId = null)
         {
-            IEnumerable<TicketResponse> foundTickets = await _context.Tickets
+            var query = _context.Tickets.AsQueryable();
+
+            if (userId is not null)
+            {
+                query = query.Where(t => t.RequesterId == userId);
+            }
+
+            IEnumerable<TicketResponse> foundTickets = await query
                 .OrderByDescending(t => t.CreatedAt)
                 .Skip((page - 1) * limit)
                 .Take(limit)
@@ -54,10 +61,11 @@ namespace Helpdesk.API.Modules.Tickets
             return Result.Ok(foundTicket.ToTicketDetailsResponse(foundAttachments.Value));
         }
 
-        public async Task<Result<Guid>> CreateTicketAsync(TicketRequest request)
+        public async Task<Result<Guid>> CreateTicketAsync(TicketRequest request,Guid requesterId)
         {
             var ticketToCreate = request.ToTicket();
             ticketToCreate.CreatedAt = DateTime.UtcNow;
+            ticketToCreate.RequesterId = requesterId;
 
             await _context.Tickets.AddAsync(ticketToCreate);
             var changes = await _context.SaveChangesAsync();
@@ -103,6 +111,11 @@ namespace Helpdesk.API.Modules.Tickets
                 return Result.Fail(new NotFoundError($"Ticket {id} does not exist"));
             }
 
+            if (foundTicket.Status == TicketStatus.Closed)
+            {
+                return Result.Fail(new Error("Closed ticket cannot be deleted"));
+            }
+
             foreach (var attachment in foundTicket.TicketAttachments.ToList())
             {
                 
@@ -115,6 +128,11 @@ namespace Helpdesk.API.Modules.Tickets
             int changes = await _context.SaveChangesAsync();
 
             return changes > 0 ? Result.Ok() : Result.Fail(new Error("Failed to delete ticket"));
+        }
+
+        public async Task<bool> IsTicketOwnerAsync(Guid ticketId, Guid userId)
+        {
+            return await _context.Tickets.AnyAsync(t => t.Id == ticketId && t.RequesterId == userId);
         }
     }
 }

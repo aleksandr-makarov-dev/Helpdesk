@@ -9,5 +9,7 @@
         public string JwtSecretKey { get; set; } = string.Empty;
         public string MinioBucketName { get; set; } = string.Empty;
         public string MinioEndpoint { get; set; } = string.Empty;
+        public string DefaultAdminEmail { get; set; } = string.Empty;
+        public string DefaultAdminPassword { get; set; } = string.Empty;
     }
 }

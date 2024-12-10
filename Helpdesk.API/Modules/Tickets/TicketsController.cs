@@ -1,13 +1,18 @@
 ﻿using System.Net;
+using System.Security.Claims;
 using Helpdesk.API.Errors;
 using Helpdesk.API.Models;
 using Helpdesk.API.Modules.Attachments;
 using Helpdesk.API.Modules.Attachments.Models;
 using Helpdesk.API.Modules.Tickets.Models;
+using Helpdesk.API.Modules.Users;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Helpdesk.API.Modules.Tickets
 {
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [Route("api/[controller]")]
     [ApiController]
     public class TicketsController:ControllerBase
@@ -24,7 +29,16 @@ namespace Helpdesk.API.Modules.Tickets
         [HttpGet]
         public async Task<IActionResult> GetAllTasks([FromQuery] int page = 1)
         {
-            var foundPage = await _ticketService.GetTicketsPageAsync(page);
+            Page<TicketResponse> foundPage;
+
+            if (User.IsInRole(Role.Admin))
+            {
+                foundPage = await _ticketService.GetTicketsPageAsync(page, userId: User.GetUserId());
+            }
+            else
+            {
+                foundPage = await _ticketService.GetTicketsPageAsync(page);
+            }
 
             return Ok(foundPage);
         }
@@ -32,6 +46,18 @@ namespace Helpdesk.API.Modules.Tickets
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetTicketById([FromRoute] Guid id)
         {
+            var isOwner = await _ticketService.IsTicketOwnerAsync(id, User.GetUserId());
+
+            if (!isOwner && !User.IsInRole(Role.Admin))
+            {
+                return Unauthorized(new ProblemDetails
+                {
+                    Title = "401 Unauthorized",
+                    Status = (int)HttpStatusCode.Unauthorized,
+                    Detail = "You are not an owner of a ticket neither an admin"
+                });
+            }
+
             var foundTicket = await _ticketService.GetTicketDetailsByIdAsync(id);
 
             if (foundTicket.IsFailed)
@@ -50,7 +76,7 @@ namespace Helpdesk.API.Modules.Tickets
         [HttpPost]
         public async Task<IActionResult> CreateTicket([FromBody] TicketRequest request)
         {
-            var createdId = await _ticketService.CreateTicketAsync(request);
+            var createdId = await _ticketService.CreateTicketAsync(request,User.GetUserId());
 
             if (createdId.IsFailed)
             {
@@ -79,6 +105,7 @@ namespace Helpdesk.API.Modules.Tickets
             return Ok(new IdResponse(createdId.Value));
         }
 
+        [Authorize(Roles = Role.Admin)]
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> UpdateTicket([FromRoute] Guid id, [FromBody] TicketUpdateRequest request)
         {
@@ -107,6 +134,7 @@ namespace Helpdesk.API.Modules.Tickets
             return NoContent();
         }
 
+        [Authorize(Roles = Role.Admin)]
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> DeleteTicket([FromRoute] Guid id)
         {

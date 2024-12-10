@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Helpdesk.API.Modules.Attachments;
+using Helpdesk.API.Modules.Users;
 
 namespace Helpdesk.API.Modules.Tickets
 {
@@ -14,6 +15,8 @@ namespace Helpdesk.API.Modules.Tickets
         public TicketStatus Status { get; set; } = TicketStatus.Pending;
         public TicketPriority Priority { get; set; } = TicketPriority.Low;
         public DateTime CreatedAt { get; set; }
+        public Guid RequesterId { get; set; }
+        public User Requester { get; set; } = null!;
         public ICollection<TicketAttachment> TicketAttachments { get; set; } = new List<TicketAttachment>();
     }
 
@@ -22,7 +25,6 @@ namespace Helpdesk.API.Modules.Tickets
         Pending,
         Working,
         Closed,
-        Rejected
     }
 
     public enum TicketPriority

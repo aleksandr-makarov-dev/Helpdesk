@@ -1,9 +1,12 @@
 ﻿using System.Net;
 using Helpdesk.API.Modules.Attachments.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Helpdesk.API.Modules.Attachments
 {
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [Route("/api/[controller]")]
     [ApiController]
     public class AttachmentsController:ControllerBase
