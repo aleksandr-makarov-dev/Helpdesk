@@ -5,6 +5,7 @@
         string Title,
         TicketPriority Priority,
         TicketStatus Status,
-        DateTime CreatedAt
+        DateTime CreatedAt,
+        Guid RequesterId
         );
 }

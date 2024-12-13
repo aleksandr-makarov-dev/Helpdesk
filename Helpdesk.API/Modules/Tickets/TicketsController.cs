@@ -31,13 +31,15 @@ namespace Helpdesk.API.Modules.Tickets
         {
             Page<TicketResponse> foundPage;
 
-            if (User.IsInRole(Role.Admin))
+            var isAdmin = User.IsInRole(Role.Admin);
+
+            if (isAdmin)
             {
-                foundPage = await _ticketService.GetTicketsPageAsync(page, userId: User.GetUserId());
+                foundPage = await _ticketService.GetTicketsPageAsync(page);
             }
             else
             {
-                foundPage = await _ticketService.GetTicketsPageAsync(page);
+                foundPage = await _ticketService.GetTicketsPageAsync(page, userId: User.GetUserId());
             }
 
             return Ok(foundPage);

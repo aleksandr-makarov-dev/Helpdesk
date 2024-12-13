@@ -32,10 +32,10 @@ namespace Helpdesk.API.Modules.Tickets
                 .OrderByDescending(t => t.CreatedAt)
                 .Skip((page - 1) * limit)
                 .Take(limit)
-                .Select(t=>new TicketResponse(t.Id,t.Title,t.Priority,t.Status,t.CreatedAt))
+                .Select(t=>new TicketResponse(t.Id,t.Title,t.Priority,t.Status,t.CreatedAt,t.RequesterId))
                 .ToListAsync();
 
-            var count = await _context.Tickets.CountAsync();
+            var count = await query.CountAsync();
 
             return new Page<TicketResponse>(foundTickets,count);
         }
